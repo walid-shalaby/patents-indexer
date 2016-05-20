@@ -1,0 +1,174 @@
+hdfs dfs -rm -r hdfs://dsba/user/wshalaby/.Trash/Current/user/wshalaby/*
+
+liner
+------
+cat patent.xml | tr '\r\n' ' ' | sed -e 's/<?xml version="1.0" encoding="UTF-8"?>  /\n/g' | sed -e 's/<!DOCTYPE us\-patent\-grant SYSTEM "us-patent-grant-v45-2014-04-03.dtd" \[ \]>  //g' | tail -n +2  > patent1.xml
+
+schema code generation
+-------------------------
+xjc -dtd -d ./ -p xml.us.patent.grant.v45 ../../data/dtds/us-patent-grant-v45-2014-04-03.dtd
+xjc -dtd -d ./ -p xml.us.patent.grant.v44 ../../data/dtds/us-patent-grant-v44-2013-05-16.dtd
+xjc -dtd -d ./ -p xml.us.patent.grant.v43 "../../data/dtds/DTD US Patent Grant Publications v43 2012-12-04.dtd"
+xjc -dtd -d ./ -p xml.us.patent.grant.v42 ../../data/dtds/us-patent-grant-v42-2006-08-23.dtd
+xjc -dtd -d ./ -p xml.us.patent.grant.v41 ../../data/dtds/us-patent-grant-v41-2005-08-25.dtd
+xjc -dtd -d ./ -p xml.us.patent.grant.v40_041202 ../../data/dtds/us-patent-grant-v40-2004-12-02.dtd
+xjc -dtd -b ../../data/dtds/bindings.xjb -d ./ -p xml.us.patent.grant.vST32_025xml ../../data/dtds/ST32-US-Grant-025xml.dtd
+xjc -dtd -b ../../data/dtds/bindings.xjb -d ./ -p xml.us.patent.grant.vST32_024 ../../data/dtds/ST32-US-Grant-024.dtd
+
+xjc -dtd -d ./ -p xml.us.patent.application.v44 ../../data/dtds/us-patent-application-v44-2014-04-03.dtd
+
+xjc -dtd -d ./ -p xml.us.patent.application.v44 ../../data/dtds/us-patent-application-v44-2014-04-03.dtd
+
+xjc -dtd -d ./ -p xml.us.patent.application.v16 ../../data/dtds/pap-v16-2002-01-01.dtd
+
+data transfer
+--------------
+scp -r ../../code/patents-indexer/*.java wshalaby@dsba-hadoop.uncc.edu:/users/wshalaby/cc/project/code/patents-indexer/
+scp -r ../../data/sample.xml wshalaby@dsba-hadoop.uncc.edu:/users/wshalaby/cc/project/data/
+scp -r wshalaby@10.18.203.79:/home/wshalaby/Desktop/patents-indexer/* ./
+
+ssh urc-hadoop.uncc.edu
+
+compiling
+----------
+rm -r build/*
+javac -cp /usr/lib/hadoop/*:/usr/lib/hadoop-mapreduce/* ./xml/us/patent/application/v16/*.java ./xml/us/patent/application/v40_040415/*.java ./xml/us/patent/application/v40_040908/*.java ./xml/us/patent/application/v40_040927/*.java ./xml/us/patent/application/v40_041028/*.java ./xml/us/patent/application/v40_041202/*.java ./xml/us/patent/application/v41/*.java ./xml/us/patent/application/v42/*.java ./xml/us/patent/application/v43/*.java ./xml/us/patent/application/v44/*.java ./xml/us/patent/grant/vST32_025xml/*.java ./xml/us/patent/grant/vST32_024/*.java ./xml/us/patent/grant/v40_041202/*.java ./xml/us/patent/grant/v41/*.java ./xml/us/patent/grant/v42/*.java ./xml/us/patent/grant/v43/*.java ./xml/us/patent/grant/v44/*.java ./xml/us/patent/grant/v45/*.java ./*.java -d build -Xlint
+mkdir build/dtds
+cp ./dtds/* build/dtds/
+jar -cvf patentindexer.jar -C build/ .
+
+javac SolrUpdate.java 
+
+running
+--------
+hdfs dfs -mkdir patents1
+hdfs dfs -mkdir parsedpatents1
+hdfs dfs -rm -r parsedpatents/grants/*
+
+hdfs dfs -rm -r hdfs://dsba/user/wshalaby/.Trash/Current/user/wshalaby/*
+hdfs dfs -rm -r hdfs://urc-hadoop/user/wshalaby/.Trash/Current/*
+
+nohup ../shell/parser.sh grants 2010 2015 > grants-2010-2015.txt &
+nohup ../shell/parser.sh applications 2010 2015 > apps-2010-2015.txt &
+
+hadoop jar patentindexer.jar PatentsIndexer patents/grants/2012 parsedpatents/grants/2012
+
+hdfs dfs -text parsedpatents/grants/2015/* > /scratch/wshalaby/patents/parsed/grants/2015/2015.txt
+hdfs dfs -text parsedpatents/applications/2015/* > /scratch/wshalaby/patents/parsed/applications/2015/2015.txt
+
+hdfs dfs -rm -r parsedpatents/applications/2015
+
+java -jar indexsemgenerator.jar 5678 2015
+
+nano parsedpatents.txt
+cat parsedpatents.txt
+
+cat grants-links.txt | grep -P '<a .*?>' > grants-new-links.txt
+xargs -n 1 curl -O < grants-new-links.txt
+
+java -jar patentindexer-main.jar >& log.log
+/home/wshalaby/work/patentsindex/2004-grants-raw.txt
+/home/wshalaby/work/patentsindex/2004grants
+20
+
+patent data
+---------------
+. ./patent-preprocessor.sh /users/wshalaby/cc/project/data/applications patents/applications
+
+indexing
+----------
+curl http://10.18.203.79:9090/solr/update?commitWithin=10000 -H "Content-Type: text/xml" --data-binary '<add><doc><field name="id">22</field></doc></add>'
+head -n 1 parsedpatents.txt > 1patentdoc.xml
+curl http://10.18.203.79:9090/solr/update?commitWithin=1 --data-binary @1patentdoc.xml -H "Content-Type: text/xml"
+
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2015/ 10.18.202.74:9091 > index-text02-grants15.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2015/ 10.18.202.74:9091 > index-text02-app15.txt &
+
+/media/wshalaby/b667e28e-5e90-4884-8810-5d897c9e56ce/work/github/solr-4.10.2/solr/example$ java -jar start.jar -Dsolr.solr.home=patents/ -Djetty.port=9091
+
+------------
+javac -cp /usr/lib/hadoop/*:/usr/lib/hadoop-mapreduce/*:./lib/solr-solrj-4.10.2-SNAPSHOT.jar ./xml/us/patent/grant/v45/*.java ./*.java -d build -Xlint
+
+export HADOOP_CLASSPATH=$HADOOP_CLASSPATH:/users/wshalaby/cc/project/code/patents-indexer/lib/solr-solrj-4.10.2-SNAPSHOT.jar
+hadoop classpath
+
+hadoop jar patentindexer.jar PatentsIndexer patents parsedpatents -libjars ./lib/solr-solrj-4.10.2-SNAPSHOT.jar
+
+
+
+
+nohup hdfs dfs -text parsedpatents/applications/2001/* > /scratch/wshalaby/patents/parsed/applications/2001/2001.txt &
+nohup hdfs dfs -text parsedpatents/applications/2002/* > /scratch/wshalaby/patents/parsed/applications/2002/2002.txt &
+nohup hdfs dfs -text parsedpatents/applications/2003/* > /scratch/wshalaby/patents/parsed/applications/2003/2003.txt &
+nohup hdfs dfs -text parsedpatents/applications/2004/* > /scratch/wshalaby/patents/parsed/applications/2004/2004.txt &
+nohup hdfs dfs -text parsedpatents/applications/2005/* > /scratch/wshalaby/patents/parsed/applications/2005/2005.txt &
+nohup hdfs dfs -text parsedpatents/applications/2006/* > /scratch/wshalaby/patents/parsed/applications/2006/2006.txt &
+nohup hdfs dfs -text parsedpatents/applications/2007/* > /scratch/wshalaby/patents/parsed/applications/2007/2007.txt &
+nohup hdfs dfs -text parsedpatents/applications/2008/* > /scratch/wshalaby/patents/parsed/applications/2008/2008.txt &
+nohup hdfs dfs -text parsedpatents/applications/2009/* > /scratch/wshalaby/patents/parsed/applications/2009/2009.txt &
+nohup hdfs dfs -text parsedpatents/applications/2010/* > /scratch/wshalaby/patents/parsed/applications/2010/2010.txt &
+nohup hdfs dfs -text parsedpatents/applications/2011/* > /scratch/wshalaby/patents/parsed/applications/2011/2011.txt &
+nohup hdfs dfs -text parsedpatents/applications/2012/* > /scratch/wshalaby/patents/parsed/applications/2012/2012.txt &
+nohup hdfs dfs -text parsedpatents/applications/2013/* > /scratch/wshalaby/patents/parsed/applications/2013/2013.txt &
+nohup hdfs dfs -text parsedpatents/applications/2014/* > /scratch/wshalaby/patents/parsed/applications/2014/2014.txt &
+nohup hdfs dfs -text parsedpatents/applications/2015/* > /scratch/wshalaby/patents/parsed/applications/2015/2015.txt &
+
+
+
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2001/ 10.18.203.79:9091 > index-app01.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2002/ 10.18.203.79:9091 > index-app02.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2003/ 10.18.203.79:9091 > index-app03.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2004/ 10.18.203.79:9091 > index-app04.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2005/ 10.18.203.79:9091 > index-app05.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2006/ 10.18.203.79:9091 > index-app06.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2007/ 10.18.203.79:9091 > index-app07.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2008/ 10.18.203.79:9091 > index-app08.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2009/ 10.18.203.79:9091 > index-app09.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2010/ 10.18.203.79:9091 > index-app10.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2011/ 10.18.203.79:9091 > index-app11.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2012/ 10.18.203.79:9091 > index-app12.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2013/ 10.18.203.79:9091 > index-app13.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2014/ 10.18.203.79:9091 > index-app14.txt &
+nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2015/ 10.18.203.79:9091 > index-app15.txt &
+
+
+
+[1]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2001/ 10.18.203.79:9091 > index-app01.txt
+[6]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2006/ 10.18.203.79:9091 > index-app06.txt
+[7]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2007/ 10.18.203.79:9091 > index-app07.txt
+[8]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2008/ 10.18.203.79:9091 > index-app08.txt
+[9]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2009/ 10.18.203.79:9091 > index-app09.txt
+[11]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2011/ 10.18.203.79:9091 > index-app11.txt
+[12]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2012/ 10.18.203.79:9091 > index-app12.txt
+[13]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/applications/2013/ 10.18.203.79:9091 > index-app13.txt
+
+
+nohup hdfs dfs -text parsedpatents/grants/2001/* > /scratch/wshalaby/patents/parsed/grants/2001/2001.txt &
+nohup hdfs dfs -text parsedpatents/grants/2002/* > /scratch/wshalaby/patents/parsed/grants/2002/2002.txt &
+nohup hdfs dfs -text parsedpatents/grants/2003/* > /scratch/wshalaby/patents/parsed/grants/2003/2003.txt &
+nohup hdfs dfs -text parsedpatents/grants/2004/* > /scratch/wshalaby/patents/parsed/grants/2004/2004.txt &
+nohup hdfs dfs -text parsedpatents/grants/2005/* > /scratch/wshalaby/patents/parsed/grants/2005/2005.txt &
+nohup hdfs dfs -text parsedpatents/grants/2006/* > /scratch/wshalaby/patents/parsed/grants/2006/2006.txt &
+nohup hdfs dfs -text parsedpatents/grants/2007/* > /scratch/wshalaby/patents/parsed/grants/2007/2007.txt &
+nohup hdfs dfs -text parsedpatents/grants/2008/* > /scratch/wshalaby/patents/parsed/grants/2008/2008.txt &
+nohup hdfs dfs -text parsedpatents/grants/2009/* > /scratch/wshalaby/patents/parsed/grants/2009/2009.txt &
+nohup hdfs dfs -text parsedpatents/grants/2010/* > /scratch/wshalaby/patents/parsed/grants/2010/2010.txt &
+nohup hdfs dfs -text parsedpatents/grants/2011/* > /scratch/wshalaby/patents/parsed/grants/2011/2011.txt &
+nohup hdfs dfs -text parsedpatents/grants/2012/* > /scratch/wshalaby/patents/parsed/grants/2012/2012.txt &
+nohup hdfs dfs -text parsedpatents/grants/2013/* > /scratch/wshalaby/patents/parsed/grants/2013/2013.txt &
+nohup hdfs dfs -text parsedpatents/grants/2014/* > /scratch/wshalaby/patents/parsed/grants/2014/2014.txt &
+nohup hdfs dfs -text parsedpatents/grants/2015/* > /scratch/wshalaby/patents/parsed/grants/2015/2015.txt &
+
+
+[19]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2005/ 10.18.203.79:9091 > index-app05.txt
+[20]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2006/ 10.18.203.79:9091 > index-app06.txt
+[21]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2007/ 10.18.203.79:9091 > index-app07.txt
+[22]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2008/ 10.18.203.79:9091 > index-app08.txt
+[23]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2009/ 10.18.203.79:9091 > index-app09.txt
+[24]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2010/ 10.18.203.79:9091 > index-app10.txt
+[25]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2011/ 10.18.203.79:9091 > index-app11.txt
+[27]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2013/ 10.18.203.79:9091 > index-app13.txt
+[28]   Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2014/ 10.18.203.79:9091 > index-app14.txt
+[wshalaby@tpn-i1 patents-indexer]$ nohup: ignoring input and redirecting stderr to stdout
+
+[29]+  Done                    nohup java SolrUpdate /scratch/wshalaby/patents/parsed/grants/2015/ 10.18.203.79:9091 > index-app15.txt
