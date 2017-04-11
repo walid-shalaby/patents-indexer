@@ -1,6 +1,30 @@
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+
 public class test {
 
 	public static void main(String[] args) {
+		BufferedReader br;
+		try {
+			br = new BufferedReader(new FileReader("/home/wshalaby/work/phd-courses/cc for data analysis/assignments/a2/org-TA/tmp1.txt"));
+			String line;
+			line = br.readLine();
+			int c = 1;
+			while(line!=null) {
+				String[] tokens1 = line.split("\t"); 
+		         String[] tokens2 = tokens1[0].split("&#&#&");
+		         System.out.println(c);
+		         System.out.println(tokens2[0]+tokens2[1]+"="+tokens1[1]);
+		         c++;
+				line = br.readLine();
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		// TODO Auto-generated method stub
 		/*PatentTransformer t = new PatentTransformer();
 		try {
